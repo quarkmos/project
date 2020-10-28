@@ -1,0 +1,292 @@
+import pandas as pd
+#import numpy as np
+#import csv
+import math
+import operator
+import sys
+from PyQt5.QtCore import 
+from PyQt5.QtGui import 
+from PyQt5.QtWidgets import 
+
+data_set = pd.read_csv('rottenscore.csv', encoding='utf8', header=None)
+
+name = data_set[0].tolist()
+title = data_set[1].tolist()
+score = data_set[2].tolist()
+
+user_name = list()
+user_title = list()
+user_score = list()
+
+# dfpt.index는 이름을 가지고 있음 이름을 순차적으로 item에 대입
+# 내가 필요한건 해당이름에 있는 영화목록 df[df['Name'] == item]['Title']
+# 다른 이름의 영화목록과 비교해서 공통 영화목록을 뽑아내는 것
+# 공통 영화목록의 점수가 필요함
+
+def test(i)
+    print(i)
+
+def com_title(df, dfpt, p1, p2)
+    si = dict()  # 같이 평가한 영화 저장
+
+    titlep1 = df[df['Name'] == dfpt.index[p1]]['Title']
+    titlep2 = df[df['Name'] == dfpt.index[p2]]['Title']
+    for item in titlep1.values
+        if item in titlep2.values
+            si[item] = 1
+
+    # 공통 항목 개수
+    n = len(si)
+    if n == 0
+        return 0
+
+    sscore1 = []  # sum
+    ssqcore1 = []  # 2sum
+    sscore2 = []
+    ssqcore2 = []
+    psum = []
+
+    cname1 = df['Name'] == dfpt.index[p1]
+    cname2 = df['Name'] == dfpt.index[p2]
+
+    for it in si
+        ctitle1 = df['Title'] == it
+        cscore1 = df[cname1 & ctitle1]['Score'].values
+        sscore1.append(cscore1)
+        ssscore1 = sum(sscore1)
+
+        ctitle2 = df['Title'] == it
+        cscore2 = df[cname2 & ctitle2]['Score'].values
+        sscore2.append(cscore2)
+        ssscore2 = sum(sscore2)
+
+        qscore1 = (df[cname1 & ctitle1]['Score'].values)  2
+        ssqcore1.append(qscore1)
+        sssqcore1 = sum(ssqcore1)
+
+        qscore2 = (df[cname2 & ctitle2]['Score'].values)  2
+        ssqcore2.append(qscore2)
+        sssqcore2 = sum(ssqcore2)
+
+        pscore = cscore1  cscore2
+        psum.append(pscore)
+        ppsum = sum(psum)
+
+    num = ppsum - (ssscore1  ssscore2  n)
+    den = math.sqrt((sssqcore1 - pow(ssscore1, 2)  n)  (sssqcore2 - pow(ssscore2, 2)  n))
+    if den == 0
+        return 0
+
+    r = num  den  # -1 ~ +1 마이너스 선형상관계수를 가지면 상이한 개체
+
+    return r
+
+counttitle={} #dict
+for i in title
+    try counttitle[i] += 1
+    except counttitle[i]=1
+
+sorted_counttitle = sorted(counttitle.items(), key = operator.itemgetter(1), reverse = True) #tuple
+
+df = pd.DataFrame({'Name' name, 'Title' title, 'Score' score}, columns=['Name', 'Title', 'Score'])
+dfpt = df.pivot_table(index='Name', columns='Title', values='Score', aggfunc='first').fillna(0)  # index 0 = name, index 1 = title, index 2 = score
+
+user_df = pd.DataFrame({'Name' user_name, 'Title' user_title, 'Score' user_score}, columns=['Name', 'Title', 'Score'])
+user_dfpt = user_df.pivot_table(index='Name', columns='Title', values='Score', aggfunc='first').fillna(0)  # index 0 = name, index 1 = title, index 2 = score
+
+#final_df = df.append(user_df, ignore_index = True)
+
+
+#GUI#GUI#GUI#GUI#GUI#GUI#GUI#GUI#GUI#GUI#GUI#GUI#GUI#GUI#GUI#GUI#GUI
+
+###########################clickable label###########################
+
+def clickable(widget)
+    class Filter(QObject)
+
+        clicked = pyqtSignal()
+
+        def eventFilter(self, obj, event)
+
+            if obj == widget
+                if event.type() == QEvent.MouseButtonRelease
+                    if obj.rect().contains(event.pos())
+                        self.clicked.emit()
+                        # The developer can opt for .emit(obj) to get the object within the slot.
+                        return True
+
+            return False
+
+    filter = Filter(widget)
+    widget.installEventFilter(filter)
+    return filter.clicked
+
+#############################main window#############################
+class Window(QWidget)
+
+    def __init__(self, parent=None)
+        QWidget.__init__(self, parent)
+
+        self.resize(1400, 800)
+        self.center()
+
+        nextbtn = QPushButton(self)
+        nextbtn.setText('N E X T')
+
+        donebtn = QPushButton(self)
+        donebtn.setText('D O N E')
+
+        label1 = QLabel(self)
+        pixmap = QPixmap('CUsersquarkmosDesktoppycposteravengers') #메인컨테이너의 첫번째 img src 크롤링
+        pixmap = pixmap.scaled(206, 305)
+        label1.setPixmap(QPixmap(pixmap))
+
+        label2 = QLabel(self)
+        pixmap = QPixmap('CUsersquarkmosDesktoppycpostertomatoicon.png')
+        pixmap = pixmap.scaled(206, 305)
+        label2.setPixmap(QPixmap(pixmap))
+
+        label3 = QLabel(self)
+        pixmap = QPixmap('CUsersquarkmosDesktoppycpostertomatoicon.png')
+        pixmap = pixmap.scaled(250, 250)
+        label3.setPixmap(QPixmap(pixmap))
+
+        label4 = QLabel(self)
+        pixmap = QPixmap('CUsersquarkmosDesktoppycpostertomatoicon.png')
+        pixmap = pixmap.scaled(250, 250)
+        label4.setPixmap(QPixmap(pixmap))
+
+        label5 = QLabel(self)
+        pixmap = QPixmap('CUsersquarkmosDesktoppycpostertomatoicon.png')
+        pixmap = pixmap.scaled(250, 250)
+        label5.setPixmap(QPixmap(pixmap))
+
+        label6 = QLabel(self)
+        pixmap = QPixmap('CUsersquarkmosDesktoppycpostertomatoicon.png')
+        pixmap = pixmap.scaled(250, 250)
+        label6.setPixmap(QPixmap(pixmap))
+
+        label7 = QLabel(self)
+        pixmap = QPixmap('CUsersquarkmosDesktoppycpostertomatoicon.png')
+        pixmap = pixmap.scaled(250, 250)
+        label7.setPixmap(QPixmap(pixmap))
+
+        label8 = QLabel(self)
+        pixmap = QPixmap('CUsersquarkmosDesktoppycpostertomatoicon.png')
+        pixmap = pixmap.scaled(250, 250)
+        label8.setPixmap(QPixmap(pixmap))
+
+        clickable(label1).connect(self.checklbl0)
+        clickable(label2).connect(self.checklbl1)
+        clickable(label3).connect(self.checklbl2)
+        clickable(label4).connect(self.checklbl3)
+        clickable(label5).connect(self.checklbl4)
+        clickable(label6).connect(self.checklbl5)
+        clickable(label7).connect(self.checklbl6)
+        clickable(label8).connect(self.checklbl7)
+
+        donebtn.clicked.connect(self.printdf)
+
+        layout = QGridLayout(self)
+        layout.addWidget(label1, 0, 0)
+        layout.addWidget(label2, 0, 1)
+        layout.addWidget(label3, 0, 2)
+        layout.addWidget(label4, 0, 3)
+        layout.addWidget(label5, 1, 0)
+        layout.addWidget(label6, 1, 1)
+        layout.addWidget(label7, 1, 2)
+        layout.addWidget(label8, 1, 3)
+        layout.addWidget(nextbtn, 2, 1)
+        layout.addWidget(donebtn, 2, 2)
+
+###########################label function############################
+
+    def checklbl0(self)
+        user_name.append('user')
+        user_title.append(sorted_counttitle[0][0])
+        user_score.append('100')
+#       user_df = pd.DataFrame({'Name' user_name, 'Title' user_title, 'Score' user_score}, columns=['Name', 'Title', 'Score'])
+#       return user_df
+
+    def checklbl1(self)
+        user_name.append('user')
+        user_title.append(sorted_counttitle[1][0])
+        user_score.append('100')
+#       user_df = pd.DataFrame({'Name' user_name, 'Title' user_title, 'Score' user_score}, columns=['Name', 'Title', 'Score'])
+#       return user_df
+
+    def checklbl2(self)
+        user_name.append('user')
+        user_title.append(sorted_counttitle[2][0])
+        user_score.append('100')
+#       user_df = pd.DataFrame({'Name' user_name, 'Title' user_title, 'Score' user_score}, columns=['Name', 'Title', 'Score'])
+#       return user_df
+
+    def checklbl3(self)
+        user_name.append('user')
+        user_title.append(sorted_counttitle[3][0])
+        user_score.append('100')
+
+#       user_df = pd.DataFrame({'Name' user_name, 'Title' user_title, 'Score' user_score}, columns=['Name', 'Title', 'Score'])
+#       return user_df
+
+    def checklbl4(self)
+        user_name.append('user')
+        user_title.append(sorted_counttitle[4][0])
+        user_score.append('100')
+#       user_df = pd.DataFrame({'Name' user_name, 'Title' user_title, 'Score' user_score}, columns=['Name', 'Title', 'Score'])
+#       return user_df
+
+    def checklbl5(self)
+        user_name.append('user')
+        user_title.append(sorted_counttitle[5][0])
+        user_score.append('100')
+#       user_df = pd.DataFrame({'Name' user_name, 'Title' user_title, 'Score' user_score}, columns=['Name', 'Title', 'Score'])
+#       return user_df
+
+    def checklbl6(self)
+        user_name.append('user')
+        user_title.append(sorted_counttitle[6][0])
+        user_score.append('100')
+#       user_df = pd.DataFrame({'Name' user_name, 'Title' user_title, 'Score' user_score}, columns=['Name', 'Title', 'Score'])
+#       return user_df
+
+    def checklbl7(self)
+        user_name.append('user')
+        user_title.append(sorted_counttitle[7][0])
+        user_score.append('100')
+#       user_df = pd.DataFrame({'Name' user_name, 'Title' user_title, 'Score' user_score}, columns=['Name', 'Title', 'Score'])
+#       return user_df
+
+    def printdf(self)
+
+        df = pd.DataFrame({'Name' name, 'Title' title, 'Score' score}, columns=['Name', 'Title', 'Score'])
+        user_df = pd.DataFrame({'Name' user_name, 'Title' user_title, 'Score' user_score}, columns=['Name', 'Title', 'Score'])
+        final_df = df.append(user_df, ignore_index = True)
+        final_dfpt = final_df.pivot_table(index='Name', columns='Title', values='Score', aggfunc='first').fillna(0)  # index 0 = name, index 1 = title, index 2 = score
+
+        len_index = len(final_dfpt.index)
+
+        for i in range(0, len_index)
+            if final_dfpt.index[i] == 'user'
+                user_index = i
+
+        for item in range(0, len_index)
+            print(com_title(final_df, final_dfpt, item, user_index))
+
+
+#####################################################################
+    def center(self)
+        frame_info = self.frameGeometry()
+        display_center = QDesktopWidget().availableGeometry().center()
+        frame_info.moveCenter(display_center)
+        self.move(frame_info.topLeft())
+
+###########################show me window############################
+
+if __name__ == __main__
+    app = QApplication(sys.argv)
+    window = Window()
+    window.show()
+    sys.exit(app.exec_())
+
