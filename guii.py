@@ -1,9 +1,7 @@
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from bs4 import BeautifulSoup as bs
 from urllib.request import urlopen
 import urllib.request
 from urllib.parse import quote_plus
@@ -15,11 +13,9 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 import webbrowser
-
-
-######### 숨겨진 HTML 호출을 위한 추가 (앞부분)
+import parmap
+from multiprocessing import Manager, cpu_count, freeze_support
 import os
-# from selenium.webdriver.support.relative_locator import with_tag_name
 
 chromedriver = "chromedriver"
 os.environ["webdriver.chrome.driver"] = chromedriver
@@ -29,16 +25,8 @@ options.add_argument('window-size=1920x1080')
 options.add_argument("disable-gpu")
 options.add_argument("user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36")
 options.add_argument("lang=ko_KR") # 한국어!
-#driver = webdriver.Chrome(chromedriver, chrome_options = options)
-driver = webdriver.Chrome('C:\\Users\\quarkmos\\Desktop\\pyc\\chromedriver.exe', options = options)
 
-
-def expand_shadow_element(element):
-  shadow_root = driver.execute_script('return arguments[0].shadowRoot', element)
-  return shadow_root
-############ 추가 끝
-
-data_set = pd.read_csv('rottenscore.csv', encoding='utf8', header=None) #크롤링한 데이터 저장한 엑셀파일
+data_set = pd.read_csv('./csvfiles/rottenscore.csv', encoding='utf8', header=None) #크롤링한 데이터 저장한 엑셀파일
 
 name = data_set[0].tolist() #평론가 이름
 title = data_set[1].tolist() #영화 제목
@@ -57,11 +45,19 @@ rank_name = []
 rank_df = []
 rank_score = []
 rank_dict = dict()
+sorted_rank_dict = dict()
 
 author_title = []
 author_score = []
-movieurl = []
 
+urldata =[]
+urlidx = []
+
+re_urldata = []
+re_urlidx = []
+
+num_cores = cpu_count()
+urllist = []
 
 for i in range(len(name)): #평론가 이름 {'영화제목': '영화 평점' }
     if saver == name[i]:
@@ -213,21 +209,153 @@ def clickable(widget):
     widget.installEventFilter(filter)
     return filter.clicked
 
+
+#movielink = shadow_root3.find_element_by_css_selector('a').get_attribute('href')  # 영화url
+class main_poster_crawler():
+
+    def __init__(self):
+
+        self.maincrawler()
+
+    def openbrowser(self, value, urldict):
+
+        self.idx = int()
+        for key, val in urldict.items():
+            if val == str(value):
+                self.idx = int(key)
+                break
+            else:
+                continue
+
+
+        driver = webdriver.Chrome('./chromedriver.exe', options=options) #, options=options
+        driver.get(value)
+
+        def expand_shadow_element(element):
+            shadow_root = driver.execute_script('return arguments[0].shadowRoot', element)
+            return shadow_root
+
+        try:
+
+            WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, "search-result-container")))
+
+            root1 = driver.find_element_by_tag_name('search-result-container')
+            shadow_root1 = expand_shadow_element(root1)
+
+            root2 = shadow_root1.find_element_by_css_selector('search-result + *')
+            shadow_root2 = expand_shadow_element(root2)
+
+            root3 = shadow_root2.find_element_by_css_selector('media-row')
+            shadow_root3 = expand_shadow_element(root3)
+
+            imgurl = shadow_root3.find_element_by_css_selector('img').get_attribute('src')
+
+            # 이미지 리사이즈 크기 변경 > 화질개선
+            imgurl = imgurl.replace('80x126', '320x512')
+
+            urllib.request.urlretrieve(imgurl, './poster/poster' + str(self.idx) + '.jpg')
+
+        finally:
+            driver.quit()
+
+
+    def maincrawler(self):
+
+        base_url = 'https://www.rottentomatoes.com/search?search='
+        for i in range(len(sorted_counttitle)):
+            if i == 24:
+                break
+            key_url = sorted_counttitle[i][0]
+            url = base_url + quote_plus(key_url)
+
+            urldata.append(url)
+            urlidx.append(i)
+
+        for i in range(len(urldata)):
+            urldict[urlidx[i]] = urldata[i]
+
+        parmap.map(self.openbrowser, urldict.values(), urldict, pm_pbar=True, pm_processes=num_cores)
+
+class result_poster_crawler():
+
+    def __init__(self):
+
+        self.resultcrawler()
+
+    def openbrowser(self, value, rec_shared_dict, re_urldict):
+
+        self.idxx = int()
+        for key, val in re_urldict.items():
+            if val == str(value):
+                self.idxx = int(key)
+                break
+            else:
+                continue
+
+        driver = webdriver.Chrome('./chromedriver.exe', options=options) #, options=options
+        driver.get(value)
+
+        def expand_shadow_element(element):
+            shadow_root = driver.execute_script('return arguments[0].shadowRoot', element)
+            return shadow_root
+
+        try:
+
+            WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, "search-result-container")))
+
+            root1 = driver.find_element_by_tag_name('search-result-container')
+            shadow_root1 = expand_shadow_element(root1)
+
+            root2 = shadow_root1.find_element_by_css_selector('search-result + *')
+            shadow_root2 = expand_shadow_element(root2)
+
+            root3 = shadow_root2.find_element_by_css_selector('media-row')
+            shadow_root3 = expand_shadow_element(root3)
+
+            imgurl = shadow_root3.find_element_by_css_selector('img').get_attribute('src')
+            movielink = shadow_root3.find_element_by_css_selector('a').get_attribute('href')  # 영화url
+
+            # 이미지 리사이즈 크기 변경 > 화질개선
+            imgurl = imgurl.replace('80x126', '320x512')
+
+            urllib.request.urlretrieve(imgurl, './resultposter/resultposter' + str(self.idxx) + '.jpg')
+            rec_shared_dict[self.idxx] = movielink
+
+
+        finally:
+            driver.quit()
+
+
+    def resultcrawler(self):
+
+        base_url = 'https://www.rottentomatoes.com/search?search='
+        for i in range(len(sorted_rank_dict)):
+            if i == 24:
+                break
+            key_url = sorted_rank_dict[i][0]
+            url = base_url + quote_plus(key_url)
+
+            re_urldata.append(url)
+            re_urlidx.append(i)
+
+        for i in range(len(re_urldata)):
+            re_urldict[re_urlidx[i]] = re_urldata[i]
+
+        parmap.map(self.openbrowser, re_urldict.values(), rec_shared_dict, re_urldict, pm_pbar=True, pm_processes=num_cores)
+
 #실행시 가장 먼저 출력할 메인화면
-class UIWindow(QWidget):
+class page1(QWidget):
 
     #호출시 자동 실행되는 생성자
     def __init__(self, parent=None):
 
-
-        super(UIWindow, self).__init__(parent)
-#        QWidget.__init__(self, parent)
+        super(page1, self).__init__(parent)
 
         self.resize(1400, 800)
-        #화면 중앙에 윈도우가 위치하게 하는 함수 실행. 근데 고장남
         self.center()
 
-        self.inputimg()
+        self.prevbtn = QPushButton(self)
+        self.prevbtn.setText(' 이 전 ')
 
         #유저에게 입력받을 새 윈도우에 영화 레이블 8개
         self.nextbtn = QPushButton(self)
@@ -240,43 +368,43 @@ class UIWindow(QWidget):
         #클릭시 영화점수 입력할 수 있는 기능 필요
         self.label1 = QLabel(self)
         #sorted_counttitle[0][0]을 로튼토마토에 검색해서 첫번쨰 이미지 크롤링 해야 함
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\poster\\poster1.jpg')
+        pixmap = QPixmap('./poster/poster0.jpg')
         pixmap = pixmap.scaled(205, 305)
         self.label1.setPixmap(QPixmap(pixmap))
 
         self.label2 = QLabel(self)
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\poster\\poster2.jpg')
+        pixmap = QPixmap('./poster/poster1.jpg')
         pixmap = pixmap.scaled(205, 305)
         self.label2.setPixmap(QPixmap(pixmap))
 
         self.label3 = QLabel(self)
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\poster\\poster3.jpg')
-        pixmap = pixmap.scaled(250, 250)
+        pixmap = QPixmap('./poster/poster2.jpg')
+        pixmap = pixmap.scaled(205, 305)
         self.label3.setPixmap(QPixmap(pixmap))
 
         self.label4 = QLabel(self)
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\poster\\poster4.jpg')
-        pixmap = pixmap.scaled(250, 250)
+        pixmap = QPixmap('./poster/poster3.jpg')
+        pixmap = pixmap.scaled(205, 305)
         self.label4.setPixmap(QPixmap(pixmap))
 
         self.label5 = QLabel(self)
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\poster\\poster5.jpg')
-        pixmap = pixmap.scaled(250, 250)
+        pixmap = QPixmap('./poster/poster4.jpg')
+        pixmap = pixmap.scaled(205, 305)
         self.label5.setPixmap(QPixmap(pixmap))
 
         self.label6 = QLabel(self)
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\poster\\poster6.jpg')
-        pixmap = pixmap.scaled(250, 250)
+        pixmap = QPixmap('./poster/poster5.jpg')
+        pixmap = pixmap.scaled(205, 305)
         self.label6.setPixmap(QPixmap(pixmap))
 
         self.label7 = QLabel(self)
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\poster\\poster7.jpg')
-        pixmap = pixmap.scaled(250, 250)
+        pixmap = QPixmap('./poster/poster6.jpg')
+        pixmap = pixmap.scaled(205, 305)
         self.label7.setPixmap(QPixmap(pixmap))
 
         self.label8 = QLabel(self)
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\poster\\poster8.jpg')
-        pixmap = pixmap.scaled(250, 250)
+        pixmap = QPixmap('./poster/poster7.jpg')
+        pixmap = pixmap.scaled(205, 305)
         self.label8.setPixmap(QPixmap(pixmap))
 
         #그리드 레이아웃
@@ -290,6 +418,7 @@ class UIWindow(QWidget):
         layout.addWidget(self.label6, 1, 1)
         layout.addWidget(self.label7, 1, 2)
         layout.addWidget(self.label8, 1, 3)
+        layout.addWidget(self.prevbtn, 2, 0)
         layout.addWidget(self.nextbtn, 2, 1)
         layout.addWidget(self.donebtn, 2, 2)
 
@@ -352,37 +481,6 @@ class UIWindow(QWidget):
         frame_info.moveCenter(display_center)
         self.move(frame_info.topLeft())
 
-    def inputimg(self):
-
-        base_url = 'https://www.rottentomatoes.com/search?search='
-
-        n = 1
-        for i in range(len(sorted_counttitle)):
-            if n == 8:
-                break
-
-            key_url = sorted_counttitle[i][0]
-            url = base_url + quote_plus(key_url)
-
-            driver.get(url)
-            root1 = driver.find_element_by_tag_name('search-result-container')
-            shadow_root1 = expand_shadow_element(root1)
-
-            root2 = shadow_root1.find_element_by_css_selector('search-result + *')
-            shadow_root2 = expand_shadow_element(root2)
-
-            root3 = shadow_root2.find_element_by_css_selector('media-row')
-            shadow_root3 = expand_shadow_element(root3)
-
-            imgurl = shadow_root3.find_element_by_css_selector('img').get_attribute('src')
-
-            #이미지 리사이즈 크기 변경 > 화질개선
-            imgurl = imgurl.replace('80x126', '320x512')
-
-            urllib.request.urlretrieve(imgurl, './poster/poster' + str(n) + '.jpg')
-            n = n + 1
-
-
 
 #done버튼 누르면 출력되는 화면 // 영화 추천 결과 출력
 class recWindow(QWidget):
@@ -392,57 +490,56 @@ class recWindow(QWidget):
         super(recWindow, self).__init__(parent)
 
         self.resize(1400, 800)
-
-        #새로운 윈도우 출력 할 것, 추천할 영화 9~16순위
-        self.recnextbtn = QPushButton(self)
-        self.recnextbtn.setText(' 다 음 ')
+        self.linker()
 
         #이전 화면 출력
-        self.recexbtn = QPushButton(self)
-        self.recexbtn.setText(' 이 전 ')
+        self.prevbtn = QPushButton(self)
+        self.prevbtn.setText(' 이 전 ')
 
-        self.imgsaver()
+        #새로운 윈도우 출력 할 것, 추천할 영화 9~16순위
+        self.nextbtn = QPushButton(self)
+        self.nextbtn.setText(' 다 음 ')
 
         #첫번째 추천 영화
-        self.reclabel1 = QLabel(self)
         #sorted_rank_dict[0][0]로튼토마토에 검색 후 첫번째 포스터
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\images\\img1.jpg')
+        self.reclabel1 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter0.jpg')
         pixmap = pixmap.scaled(205, 305)
         self.reclabel1.setPixmap(QPixmap(pixmap))
 
         self.reclabel2 = QLabel(self)
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\images\\img2.jpg')
+        pixmap = QPixmap('./resultposter/resultposter1.jpg')
         pixmap = pixmap.scaled(205, 305)
         self.reclabel2.setPixmap(QPixmap(pixmap))
 
         self.reclabel3 = QLabel(self)
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\images\\img3.jpg')
-        pixmap = pixmap.scaled(250, 250)
+        pixmap = QPixmap('./resultposter/resultposter2.jpg')
+        pixmap = pixmap.scaled(205, 305)
         self.reclabel3.setPixmap(QPixmap(pixmap))
 
         self.reclabel4 = QLabel(self)
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\images\\img4.jpg')
-        pixmap = pixmap.scaled(250, 250)
+        pixmap = QPixmap('./resultposter/resultposter3.jpg')
+        pixmap = pixmap.scaled(205, 305)
         self.reclabel4.setPixmap(QPixmap(pixmap))
 
         self.reclabel5 = QLabel(self)
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\images\\img5.jpg')
-        pixmap = pixmap.scaled(250, 250)
+        pixmap = QPixmap('./resultposter/resultposter4.jpg')
+        pixmap = pixmap.scaled(205, 305)
         self.reclabel5.setPixmap(QPixmap(pixmap))
 
         self.reclabel6 = QLabel(self)
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\images\\img6.jpg')
-        pixmap = pixmap.scaled(250, 250)
+        pixmap = QPixmap('./resultposter/resultposter5.jpg')
+        pixmap = pixmap.scaled(205, 305)
         self.reclabel6.setPixmap(QPixmap(pixmap))
 
         self.reclabel7 = QLabel(self)
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\images\\img7.jpg')
-        pixmap = pixmap.scaled(250, 250)
+        pixmap = QPixmap('./resultposter/resultposter6.jpg')
+        pixmap = pixmap.scaled(205, 305)
         self.reclabel7.setPixmap(QPixmap(pixmap))
 
         self.reclabel8 = QLabel(self)
-        pixmap = QPixmap('C:\\Users\\quarkmos\\Desktop\\pyc\\images\\img8.jpg')
-        pixmap = pixmap.scaled(250, 250)
+        pixmap = QPixmap('./resultposter/resultposter7.jpg')
+        pixmap = pixmap.scaled(205, 305)
         self.reclabel8.setPixmap(QPixmap(pixmap))
 
         reclayout = QGridLayout()
@@ -455,8 +552,8 @@ class recWindow(QWidget):
         reclayout.addWidget(self.reclabel6, 1, 1)
         reclayout.addWidget(self.reclabel7, 1, 2)
         reclayout.addWidget(self.reclabel8, 1, 3)
-        reclayout.addWidget(self.recexbtn, 2, 1)
-        reclayout.addWidget(self.recnextbtn, 2, 2)
+        reclayout.addWidget(self.prevbtn, 2, 1)
+        reclayout.addWidget(self.nextbtn, 2, 2)
 
         clickable(self.reclabel1).connect(self.linkurl1)
         clickable(self.reclabel2).connect(self.linkurl2)
@@ -469,124 +566,339 @@ class recWindow(QWidget):
 
 
     def linkurl1(self):
-        url = movieurl[0]
+        url = urllist[0]
         webbrowser.open(url)
 
     def linkurl2(self):
-        url = movieurl[1]
+        url = urllist[1]
         webbrowser.open(url)
 
     def linkurl3(self):
-        url = movieurl[2]
+        url = urllist[2]
         webbrowser.open(url)
 
     def linkurl4(self):
-        url = movieurl[3]
+        url = urllist[3]
         webbrowser.open(url)
 
     def linkurl5(self):
-        url = movieurl[4]
+        url = urllist[4]
         webbrowser.open(url)
 
     def linkurl6(self):
-        url = movieurl[5]
+        url = urllist[5]
         webbrowser.open(url)
 
     def linkurl7(self):
-        url = movieurl[6]
+        url = urllist[6]
         webbrowser.open(url)
 
     def linkurl8(self):
-        url = movieurl[7]
+        url = urllist[7]
         webbrowser.open(url)
 
-    #유사도 가장 높은 3명의 영화 포스터 이미지 크롤링, 점수 높은 순으로 미구현
-    def imgsaver(self):
-        global  rank_dict, author_title, author_score, movieurl
-        rank_dict = dict()
-        for item in rank_df:
-            for title in item['Title']:
-                author_title.append(title)
-            for score in item['Score']:
-                author_score.append(score)
-        for i in range(len(author_title)):
-            rank_dict[author_title[i]] = int(author_score[i])
 
-        sorted_rank_dict = sorted(rank_dict.items(), key=operator.itemgetter(1), reverse=True)
+    def linker(self):
+        for i in range(len(rec_shared_dict)):
+            urllist.append(rec_shared_dict[i])
 
-        base_url = 'https://www.rottentomatoes.com/search?search='
+class recpage2(QWidget):
 
-        n = 1
-        for i in range(len(sorted_rank_dict)):
-            if n == 8:
-                break
-
-            key_url = sorted_rank_dict[i][0]
-            url = base_url + quote_plus(key_url)
-
-            driver.get(url)
-            root1 = driver.find_element_by_tag_name('search-result-container')
-            shadow_root1 = expand_shadow_element(root1)
-
-            root2 = shadow_root1.find_element_by_css_selector('search-result + *')
-            shadow_root2 = expand_shadow_element(root2)
-
-            root3 = shadow_root2.find_element_by_css_selector('media-row')
-            shadow_root3 = expand_shadow_element(root3)
-
-            movielink = shadow_root3.find_element_by_css_selector('a').get_attribute('href')
-            imgurl = shadow_root3.find_element_by_css_selector('img').get_attribute('src')
-
-            #이미지 리사이즈 크기 변경 > 화질개선
-            imgurl = imgurl.replace('80x126', '320x512')
-
-            urllib.request.urlretrieve(imgurl, './images/img' + str(n) + '.jpg')
-            movieurl.append(movielink)
-#            print(movielink)
-
-            n = n + 1
-
-        return rank_dict, author_title, author_score, movieurl
-
-
-#테스트용
-class UIToolTab(QWidget):
     def __init__(self, parent=None):
-        super(UIToolTab, self).__init__(parent)
-        self.CPSBTN = QPushButton("text2", self)
-        self.CPSBTN.move(100, 350)
+
+        super(recpage2, self).__init__(parent)
+
+        self.resize(1400, 800)
+
+        #이전 화면 출력
+        self.prevbtn = QPushButton(self)
+        self.prevbtn.setText(' 이 전 ')
+
+        #새로운 윈도우 출력 할 것, 추천할 영화 9~16순위
+        self.nextbtn = QPushButton(self)
+        self.nextbtn.setText(' 다 음 ')
+
+        #첫번째 추천 영화
+        #sorted_rank_dict[0][0]로튼토마토에 검색 후 첫번째 포스터
+        self.reclabel9 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter8.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel9.setPixmap(QPixmap(pixmap))
+
+        self.reclabel10 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter9.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel10.setPixmap(QPixmap(pixmap))
+
+        self.reclabel11 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter10.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel11.setPixmap(QPixmap(pixmap))
+
+        self.reclabel12 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter11.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel12.setPixmap(QPixmap(pixmap))
+
+        self.reclabel13 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter12.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel13.setPixmap(QPixmap(pixmap))
+
+        self.reclabel14 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter13.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel14.setPixmap(QPixmap(pixmap))
+
+        self.reclabel15 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter14.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel15.setPixmap(QPixmap(pixmap))
+
+        self.reclabel16 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter15.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel16.setPixmap(QPixmap(pixmap))
+
+        reclayout = QGridLayout()
+        self.setLayout(reclayout)
+        reclayout.addWidget(self.reclabel9, 0, 0)
+        reclayout.addWidget(self.reclabel10, 0, 1)
+        reclayout.addWidget(self.reclabel11, 0, 2)
+        reclayout.addWidget(self.reclabel12, 0, 3)
+        reclayout.addWidget(self.reclabel13, 1, 0)
+        reclayout.addWidget(self.reclabel14, 1, 1)
+        reclayout.addWidget(self.reclabel15, 1, 2)
+        reclayout.addWidget(self.reclabel16, 1, 3)
+        reclayout.addWidget(self.prevbtn, 2, 1)
+        reclayout.addWidget(self.nextbtn, 2, 2)
+
+        clickable(self.reclabel9).connect(self.linkurl9)
+        clickable(self.reclabel10).connect(self.linkurl10)
+        clickable(self.reclabel11).connect(self.linkurl11)
+        clickable(self.reclabel12).connect(self.linkurl12)
+        clickable(self.reclabel13).connect(self.linkurl13)
+        clickable(self.reclabel14).connect(self.linkurl14)
+        clickable(self.reclabel15).connect(self.linkurl15)
+        clickable(self.reclabel16).connect(self.linkurl16)
+
+    def linkurl9(self):
+        url = urllist[8]
+        webbrowser.open(url)
+
+    def linkurl10(self):
+        url = urllist[9]
+        webbrowser.open(url)
+
+    def linkurl11(self):
+        url = urllist[10]
+        webbrowser.open(url)
+
+    def linkurl12(self):
+        url = urllist[11]
+        webbrowser.open(url)
+
+    def linkurl13(self):
+        url = urllist[12]
+        webbrowser.open(url)
+
+    def linkurl14(self):
+        url = urllist[13]
+        webbrowser.open(url)
+
+    def linkurl15(self):
+        url = urllist[14]
+        webbrowser.open(url)
+
+    def linkurl16(self):
+        url = urllist[15]
+        webbrowser.open(url)
+
+
+class recpage3(QWidget):
+
+    def __init__(self, parent=None):
+
+        super(recpage3, self).__init__(parent)
+
+        self.resize(1400, 800)
+
+        #이전 화면 출력
+        self.prevbtn = QPushButton(self)
+        self.prevbtn.setText(' 이 전 ')
+
+        #새로운 윈도우 출력 할 것, 추천할 영화 9~16순위
+        self.nextbtn = QPushButton(self)
+        self.nextbtn.setText(' 다 음 ')
+
+        #첫번째 추천 영화
+        #sorted_rank_dict[0][0]로튼토마토에 검색 후 첫번째 포스터
+        self.reclabel17 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter16.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel17.setPixmap(QPixmap(pixmap))
+
+        self.reclabel18 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter17.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel18.setPixmap(QPixmap(pixmap))
+
+        self.reclabel19 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter18.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel19.setPixmap(QPixmap(pixmap))
+
+        self.reclabel20 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter19.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel20.setPixmap(QPixmap(pixmap))
+
+        self.reclabel21 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter20.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel21.setPixmap(QPixmap(pixmap))
+
+        self.reclabel22 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter21.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel22.setPixmap(QPixmap(pixmap))
+
+        self.reclabel23 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter22.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel23.setPixmap(QPixmap(pixmap))
+
+        self.reclabel24 = QLabel(self)
+        pixmap = QPixmap('./resultposter/resultposter23.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.reclabel24.setPixmap(QPixmap(pixmap))
+
+        reclayout = QGridLayout()
+        self.setLayout(reclayout)
+        reclayout.addWidget(self.reclabel17, 0, 0)
+        reclayout.addWidget(self.reclabel18, 0, 1)
+        reclayout.addWidget(self.reclabel19, 0, 2)
+        reclayout.addWidget(self.reclabel20, 0, 3)
+        reclayout.addWidget(self.reclabel21, 1, 0)
+        reclayout.addWidget(self.reclabel22, 1, 1)
+        reclayout.addWidget(self.reclabel23, 1, 2)
+        reclayout.addWidget(self.reclabel24, 1, 3)
+        reclayout.addWidget(self.prevbtn, 2, 1)
+        reclayout.addWidget(self.nextbtn, 2, 2)
+
+        clickable(self.reclabel17).connect(self.linkurl17)
+        clickable(self.reclabel18).connect(self.linkurl18)
+        clickable(self.reclabel19).connect(self.linkurl19)
+        clickable(self.reclabel20).connect(self.linkurl20)
+        clickable(self.reclabel21).connect(self.linkurl21)
+        clickable(self.reclabel22).connect(self.linkurl22)
+        clickable(self.reclabel23).connect(self.linkurl23)
+        clickable(self.reclabel24).connect(self.linkurl24)
+
+
+    def linkurl17(self):
+        url = urllist[16]
+        webbrowser.open(url)
+
+    def linkurl18(self):
+        url = urllist[17]
+        webbrowser.open(url)
+
+    def linkurl19(self):
+        url = urllist[18]
+        webbrowser.open(url)
+
+    def linkurl20(self):
+        url = urllist[19]
+        webbrowser.open(url)
+
+    def linkurl21(self):
+        url = urllist[20]
+        webbrowser.open(url)
+
+    def linkurl22(self):
+        url = urllist[21]
+        webbrowser.open(url)
+
+    def linkurl23(self):
+        url = urllist[22]
+        webbrowser.open(url)
+
+    def linkurl24(self):
+        url = urllist[23]
+        webbrowser.open(url)
 
 
 class MainWindow(QMainWindow):
+
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
         self.setGeometry(50, 50, 400, 450)
         self.setFixedSize(1200, 800)
+        self.startdownload()
         self.startUIWindow()
 
-    #테스트용
-    def gopage2(self):
-        self.ToolTab = UIToolTab(self)
-        self.setWindowTitle("UIToolTab")
-        self.setCentralWidget(self.ToolTab)
-        self.ToolTab.CPSBTN.clicked.connect(self.startUIWindow)
-        self.show()
+    def startdownload(self):
+        main_poster_crawler()
+
+    def recstartdownload(self):
+        result_poster_crawler()
 
     def showresult(self):
         self.Window = recWindow(self)
         self.setWindowTitle('result')
         self.setCentralWidget(self.Window)
+        self.Window.nextbtn.clicked.connect(self.resultpage2)
+        self.show()
+
+    def resultpage2(self):
+        self.Window = recpage2(self)
+        self.setWindowTitle('recpage2')
+        self.setCentralWidget(self.Window)
+        self.Window.prevbtn.clicked.connect(self.showresult)
+        self.Window.nextbtn.clicked.connect(self.resultpage3)
+        self.show()
+
+    def resultpage3(self):
+        self.Window = recpage3(self)
+        self.setWindowTitle('recpage3')
+        self.setCentralWidget(self.Window)
+        self.Window.prevbtn.clicked.connect(self.resultpage2)
         self.show()
 
     def startUIWindow(self):
-        self.Window = UIWindow(self)
-        self.setWindowTitle("UIWindow")
+        self.Window = page1(self)
+        self.setWindowTitle("Page1")
         self.setCentralWidget(self.Window)
         self.Window.nextbtn.clicked.connect(self.gopage2)
         self.Window.donebtn.clicked.connect(self.simrank)
+        self.Window.donebtn.clicked.connect(self.resultrank)
+        self.Window.donebtn.clicked.connect(self.recstartdownload)
         self.Window.donebtn.clicked.connect(self.showresult)
         self.show()
 
+    def gopage2(self):
+        self.Window = Page2(self)
+        self.setWindowTitle("Page2")
+        self.setCentralWidget(self.Window)
+        self.Window.nextbtn.clicked.connect(self.gopage3)
+        self.Window.prevbtn.clicked.connect(self.startUIWindow)
+        self.Window.donebtn.clicked.connect(self.simrank)
+        self.Window.donebtn.clicked.connect(self.resultrank)
+        self.Window.donebtn.clicked.connect(self.recstartdownload)
+        self.Window.donebtn.clicked.connect(self.showresult)
+        self.show()
+
+    def gopage3(self):
+        self.Window = Page3(self)
+        self.setWindowTitle("Page3")
+        self.setCentralWidget(self.Window)
+        self.Window.prevbtn.clicked.connect(self.gopage2)
+        self.Window.donebtn.clicked.connect(self.simrank)
+        self.Window.donebtn.clicked.connect(self.resultrank)
+        self.Window.donebtn.clicked.connect(self.recstartdownload)
+        self.Window.donebtn.clicked.connect(self.showresult)
+        self.show()
 
     #유사도 계산하는 함수
     def simrank(self):
@@ -622,11 +934,279 @@ class MainWindow(QMainWindow):
         global rank_df
         for item in rank_name:
             rank_df.append(final_df[final_df['Name'] == item])
-        print(temp)
 
         return rank_name, rank_temp, rank_df
 
-if __name__ == '__main__':
+    def resultrank(self):
+        global  rank_dict, author_title, author_score, sorted_rank_dict
+        rank_dict = dict()
+        for item in rank_df:
+            for title in item['Title']:
+                author_title.append(title)
+            for score in item['Score']:
+                author_score.append(score)
+        for i in range(len(author_title)):
+            rank_dict[author_title[i]] = int(author_score[i])
+
+        sorted_rank_dict = sorted(rank_dict.items(), key=operator.itemgetter(1), reverse=True)
+
+
+class Page2(QWidget):
+
+    def __init__(self, parent=None):
+        super(Page2, self).__init__(parent)
+
+        self.resize(1400, 800)
+
+        self.prevbtn = QPushButton(self)
+        self.prevbtn.setText(' 이 전 ')
+
+        self.nextbtn = QPushButton(self)
+        self.nextbtn.setText(' 다 음 ')
+
+        self.donebtn = QPushButton(self)
+        self.donebtn.setText(' 완 료 ')
+
+        self.label9 = QLabel(self)
+        pixmap = QPixmap('./poster/poster8.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label9.setPixmap(QPixmap(pixmap))
+
+        self.label10 = QLabel(self)
+        pixmap = QPixmap('./poster/poster9.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label10.setPixmap(QPixmap(pixmap))
+
+        self.label11 = QLabel(self)
+        pixmap = QPixmap('./poster/poster10.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label11.setPixmap(QPixmap(pixmap))
+
+        self.label12 = QLabel(self)
+        pixmap = QPixmap('./poster/poster11.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label12.setPixmap(QPixmap(pixmap))
+
+        self.label13 = QLabel(self)
+        pixmap = QPixmap('./poster/poster12.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label13.setPixmap(QPixmap(pixmap))
+
+        self.label14 = QLabel(self)
+        pixmap = QPixmap('./poster/poster13.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label14.setPixmap(QPixmap(pixmap))
+
+        self.label15 = QLabel(self)
+        pixmap = QPixmap('./poster/poster14.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label15.setPixmap(QPixmap(pixmap))
+
+        self.label16 = QLabel(self)
+        pixmap = QPixmap('./poster/poster15.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label16.setPixmap(QPixmap(pixmap))
+
+        # 그리드 레이아웃
+        layout = QGridLayout()
+        self.setLayout(layout)
+        layout.addWidget(self.label9, 0, 0)
+        layout.addWidget(self.label10, 0, 1)
+        layout.addWidget(self.label11, 0, 2)
+        layout.addWidget(self.label12, 0, 3)
+        layout.addWidget(self.label13, 1, 0)
+        layout.addWidget(self.label14, 1, 1)
+        layout.addWidget(self.label15, 1, 2)
+        layout.addWidget(self.label16, 1, 3)
+        layout.addWidget(self.prevbtn, 2, 0)
+        layout.addWidget(self.nextbtn, 2, 1)
+        layout.addWidget(self.donebtn, 2, 2)
+
+        # 레이블 클릭할 수 있게 만들어줌
+        clickable(self.label9).connect(self.checklbl8)
+        clickable(self.label10).connect(self.checklbl9)
+        clickable(self.label11).connect(self.checklbl10)
+        clickable(self.label12).connect(self.checklbl11)
+        clickable(self.label13).connect(self.checklbl12)
+        clickable(self.label14).connect(self.checklbl13)
+        clickable(self.label15).connect(self.checklbl14)
+        clickable(self.label16).connect(self.checklbl15)
+
+    # 레이블 클릭시 실행되는 것
+    def checklbl8(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[8][0])
+        # 유저 점수 따로 입력받고 싶음
+        user_score.append('89')
+
+    def checklbl9(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[9][0])
+        user_score.append('90')
+
+    def checklbl10(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[10][0])
+        user_score.append('89')
+
+    def checklbl11(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[11][0])
+        user_score.append('90')
+
+    def checklbl12(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[12][0])
+        user_score.append('89')
+
+    def checklbl13(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[13][0])
+        user_score.append('90')
+
+    def checklbl14(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[14][0])
+        user_score.append('89')
+
+    def checklbl15(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[15][0])
+        user_score.append('90')
+
+class Page3(QWidget):
+
+    def __init__(self, parent=None):
+        super(Page3, self).__init__(parent)
+
+        self.resize(1400, 800)
+
+        self.prevbtn = QPushButton(self)
+        self.prevbtn.setText(' 이 전 ')
+
+        self.nextbtn = QPushButton(self)
+        self.nextbtn.setText(' 다 음 ')
+
+        self.donebtn = QPushButton(self)
+        self.donebtn.setText(' 완 료 ')
+
+        self.label17 = QLabel(self)
+        pixmap = QPixmap('./poster/poster16.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label17.setPixmap(QPixmap(pixmap))
+
+        self.label18 = QLabel(self)
+        pixmap = QPixmap('./poster/poster17.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label18.setPixmap(QPixmap(pixmap))
+
+        self.label19 = QLabel(self)
+        pixmap = QPixmap('./poster/poster18.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label19.setPixmap(QPixmap(pixmap))
+
+        self.label20 = QLabel(self)
+        pixmap = QPixmap('./poster/poster19.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label20.setPixmap(QPixmap(pixmap))
+
+        self.label21 = QLabel(self)
+        pixmap = QPixmap('./poster/poster20.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label21.setPixmap(QPixmap(pixmap))
+
+        self.label22 = QLabel(self)
+        pixmap = QPixmap('./poster/poster21.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label22.setPixmap(QPixmap(pixmap))
+
+        self.label23 = QLabel(self)
+        pixmap = QPixmap('./poster/poster22.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label23.setPixmap(QPixmap(pixmap))
+
+        self.label24 = QLabel(self)
+        pixmap = QPixmap('./poster/poster23.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label24.setPixmap(QPixmap(pixmap))
+
+        # 그리드 레이아웃
+        layout = QGridLayout()
+        self.setLayout(layout)
+        layout.addWidget(self.label17, 0, 0)
+        layout.addWidget(self.label18, 0, 1)
+        layout.addWidget(self.label19, 0, 2)
+        layout.addWidget(self.label20, 0, 3)
+        layout.addWidget(self.label21, 1, 0)
+        layout.addWidget(self.label22, 1, 1)
+        layout.addWidget(self.label23, 1, 2)
+        layout.addWidget(self.label24, 1, 3)
+        layout.addWidget(self.prevbtn, 2, 0)
+        layout.addWidget(self.nextbtn, 2, 1)
+        layout.addWidget(self.donebtn, 2, 2)
+
+        # 레이블 클릭할 수 있게 만들어줌
+        clickable(self.label17).connect(self.checklbl16)
+        clickable(self.label18).connect(self.checklbl17)
+        clickable(self.label19).connect(self.checklbl18)
+        clickable(self.label20).connect(self.checklbl19)
+        clickable(self.label21).connect(self.checklbl20)
+        clickable(self.label22).connect(self.checklbl21)
+        clickable(self.label23).connect(self.checklbl22)
+        clickable(self.label24).connect(self.checklbl23)
+
+    # 레이블 클릭시 실행되는 것
+    def checklbl16(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[16][0])
+        # 유저 점수 따로 입력받고 싶음
+        user_score.append('89')
+
+    def checklbl17(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[17][0])
+        user_score.append('90')
+
+    def checklbl18(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[18][0])
+        user_score.append('89')
+
+    def checklbl19(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[19][0])
+        user_score.append('90')
+
+    def checklbl20(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[20][0])
+        user_score.append('89')
+
+    def checklbl21(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[21][0])
+        user_score.append('90')
+
+    def checklbl22(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[22][0])
+        user_score.append('89')
+
+    def checklbl23(self):
+        user_name.append('user')
+        user_title.append(sorted_counttitle[23][0])
+        user_score.append('90')
+
+def run():
+    global  urldict, rec_shared_dict, re_urldict
+    freeze_support()
+    manager = Manager()
+    urldict = manager.dict()
+    rec_shared_dict = manager.dict()
+    re_urldict = manager.dict()
     app = QApplication(sys.argv)
     w = MainWindow()
     sys.exit(app.exec_())
+
+if __name__ == '__main__':
+    run()
