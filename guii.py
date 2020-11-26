@@ -32,10 +32,6 @@ name = data_set[0].tolist() #평론가 이름
 title = data_set[1].tolist() #영화 제목
 score = data_set[2].tolist() #영화 평점
 
-user_name = list()
-user_title = list()
-user_score = list()
-
 data = [] # 저장 공간
 saver = name[0] # 현재 A컬럼의 이름을 기억할 변수
 dicter = {} # 임시 저장공간
@@ -46,6 +42,10 @@ rank_df = []
 rank_score = []
 rank_dict = dict()
 sorted_rank_dict = dict()
+
+user_name = list()
+user_title = list()
+user_score = list()
 
 author_title = []
 author_score = []
@@ -58,6 +58,10 @@ re_urlidx = []
 
 num_cores = cpu_count()
 urllist = []
+
+tempidx = []
+
+user_df = pd.DataFrame(columns=['Name', 'Title', 'Score'])
 
 for i in range(len(name)): #평론가 이름 {'영화제목': '영화 평점' }
     if saver == name[i]:
@@ -86,7 +90,7 @@ def com_title(final_df, final_dfpt, p1, p2): #p1, p2의 인덱스로 피어슨 �
     titlep1 = final_df[final_df['Name'] == final_dfpt.index[p1]]['Title']
     titlep2 = final_df[final_df['Name'] == final_dfpt.index[p2]]['Title']
 
-    for item in titlep1.values: #공통으로 평가한 영화 제목 추려냄
+    for item in titlep1.values: #공통으로 평가한 영화 추려냄
         if item in titlep2.values:
             si[item] = 1
 
@@ -97,19 +101,14 @@ def com_title(final_df, final_dfpt, p1, p2): #p1, p2의 인덱스로 피어슨 �
     if n == 0:
         return 0
 
-
-    sscore1 = []
-    ssscore1 = [] #1의 합
+    sscore1 = [] #1의 공통항목 점수
+    ssscore1 = [] #1의 공통항목 점수의 합
     ssqcore1 = []
-    sssqcore1 = [] #1의 제곱의 합
 
     sscore2 = []
-    ssscore2 = [] #2의 합
+    ssscore2 = []
     ssqcore2 = []
-    sssqcore2 = [] #2의 제곱의 합
 
-    sumpow1 = []
-    sumpow2 = []
     ssumpow1 = []
     ssumpow2 = []
 
@@ -120,7 +119,7 @@ def com_title(final_df, final_dfpt, p1, p2): #p1, p2의 인덱스로 피어슨 �
     cname2 = final_df['Name'] == final_dfpt.index[p2]
 
     for it in si:
-        ctitle1 = final_df['Title'] == it # 다중 조건을 위한 공통항목 내 영화 점수
+        ctitle1 = final_df['Title'] == it # 다중 조건을 위한 공통항목 내 영화
         cscore1 = final_df[cname1 & ctitle1]['Score'].values # df 내 두 조건을 만족하는 항목의 점수
         cscore1 = cscore1.astype(np.int)
         sscore1.append(cscore1)
@@ -134,11 +133,9 @@ def com_title(final_df, final_dfpt, p1, p2): #p1, p2의 인덱스로 피어슨 �
 
         qscore1 = cscore1 ** 2
         ssqcore1.append(qscore1)
-        sssqcore1 = sum(ssqcore1)
 
         qscore2 = (cscore2) ** 2
         ssqcore2.append(qscore2)
-        sssqcore2 = sum(ssqcore2)
 
         sumpow1 = pow(cscore1, 2)
         ssumpow1 = sum(sumpow1)
@@ -151,8 +148,6 @@ def com_title(final_df, final_dfpt, p1, p2): #p1, p2의 인덱스로 피어슨 �
         ppsum = sum(psum)
 
     num = ppsum - (ssscore1 * ssscore2 / n)
-
-#    den = np.sqrt((sssqcore1 - pow(ssscore1, 2) / n) * (sssqcore2 - pow(ssscore2, 2) / n))
 
     pow_val = (ssumpow1 - pow(ssscore1, 2) / n) * (ssumpow2 - pow(ssscore2, 2) / n)
 
@@ -169,9 +164,8 @@ def com_title(final_df, final_dfpt, p1, p2): #p1, p2의 인덱스로 피어슨 �
     if den == 0:
         return 0
 
-    # -1 ~ +1 마이너스 선형상관계수를 가지면 상이한 개체
+    # range(-1, +1) 마이너스 선형상관계수를 가지면 상이한 개체
     r = num / den
-
     return r
 
 #레이블을 클릭해서 유저데이터를 입력한 후 유저 인덱스를 찾기위한 함수
@@ -210,7 +204,6 @@ def clickable(widget):
     return filter.clicked
 
 
-#movielink = shadow_root3.find_element_by_css_selector('a').get_attribute('href')  # 영화url
 class main_poster_crawler():
 
     def __init__(self):
@@ -237,7 +230,7 @@ class main_poster_crawler():
 
         try:
 
-            WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, "search-result-container")))
+            WebDriverWait(driver, 60).until(EC.presence_of_element_located((By.TAG_NAME, "search-result-container")))
 
             root1 = driver.find_element_by_tag_name('search-result-container')
             shadow_root1 = expand_shadow_element(root1)
@@ -263,7 +256,7 @@ class main_poster_crawler():
 
         base_url = 'https://www.rottentomatoes.com/search?search='
         for i in range(len(sorted_counttitle)):
-            if i == 24:
+            if i == 1:
                 break
             key_url = sorted_counttitle[i][0]
             url = base_url + quote_plus(key_url)
@@ -301,7 +294,7 @@ class result_poster_crawler():
 
         try:
 
-            WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, "search-result-container")))
+            WebDriverWait(driver, 60).until(EC.presence_of_element_located((By.TAG_NAME, "search-result-container")))
 
             root1 = driver.find_element_by_tag_name('search-result-container')
             shadow_root1 = expand_shadow_element(root1)
@@ -321,6 +314,10 @@ class result_poster_crawler():
             urllib.request.urlretrieve(imgurl, './resultposter/resultposter' + str(self.idxx) + '.jpg')
             rec_shared_dict[self.idxx] = movielink
 
+        except:
+            imgurl = 'https://staticv2-4.rottentomatoes.com/static/images/redesign/poster_default_redesign.gif'
+            urllib.request.urlretrieve(imgurl, './resultposter/resultposter' + str(self.idxx) + '.jpg')
+            rec_shared_dict[self.idxx] = 'https://www.rottentomatoes.com/'
 
         finally:
             driver.quit()
@@ -341,6 +338,10 @@ class result_poster_crawler():
         for i in range(len(re_urldata)):
             re_urldict[re_urlidx[i]] = re_urldata[i]
 
+        print(type(re_urldict))
+        print(re_urldict)
+        print(type(rec_shared_dict))
+        print(rec_shared_dict)
         parmap.map(self.openbrowser, re_urldict.values(), rec_shared_dict, re_urldict, pm_pbar=True, pm_processes=num_cores)
 
 #실행시 가장 먼저 출력할 메인화면
@@ -348,11 +349,18 @@ class page1(QWidget):
 
     #호출시 자동 실행되는 생성자
     def __init__(self, parent=None):
-
         super(page1, self).__init__(parent)
 
+        self.l0_idx = 1
+        self.l1_idx = 1
+        self.l2_idx = 1
+        self.l3_idx = 1
+        self.l4_idx = 1
+        self.l5_idx = 1
+        self.l6_idx = 1
+        self.l7_idx = 1
+
         self.resize(1400, 800)
-        self.center()
 
         self.prevbtn = QPushButton(self)
         self.prevbtn.setText(' 이 전 ')
@@ -366,120 +374,1109 @@ class page1(QWidget):
         self.donebtn.setText(' 완 료 ')
 
         #클릭시 영화점수 입력할 수 있는 기능 필요
-        self.label1 = QLabel(self)
+        self.label0 = QLabel(self)
         #sorted_counttitle[0][0]을 로튼토마토에 검색해서 첫번쨰 이미지 크롤링 해야 함
         pixmap = QPixmap('./poster/poster0.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label0.setPixmap(QPixmap(pixmap))
+
+        self.label1 = QLabel(self)
+        pixmap = QPixmap('./poster/poster1.jpg')
         pixmap = pixmap.scaled(205, 305)
         self.label1.setPixmap(QPixmap(pixmap))
 
         self.label2 = QLabel(self)
-        pixmap = QPixmap('./poster/poster1.jpg')
+        pixmap = QPixmap('./poster/poster2.jpg')
         pixmap = pixmap.scaled(205, 305)
         self.label2.setPixmap(QPixmap(pixmap))
 
         self.label3 = QLabel(self)
-        pixmap = QPixmap('./poster/poster2.jpg')
+        pixmap = QPixmap('./poster/poster3.jpg')
         pixmap = pixmap.scaled(205, 305)
         self.label3.setPixmap(QPixmap(pixmap))
 
         self.label4 = QLabel(self)
-        pixmap = QPixmap('./poster/poster3.jpg')
+        pixmap = QPixmap('./poster/poster4.jpg')
         pixmap = pixmap.scaled(205, 305)
         self.label4.setPixmap(QPixmap(pixmap))
 
         self.label5 = QLabel(self)
-        pixmap = QPixmap('./poster/poster4.jpg')
+        pixmap = QPixmap('./poster/poster5.jpg')
         pixmap = pixmap.scaled(205, 305)
         self.label5.setPixmap(QPixmap(pixmap))
 
         self.label6 = QLabel(self)
-        pixmap = QPixmap('./poster/poster5.jpg')
+        pixmap = QPixmap('./poster/poster6.jpg')
         pixmap = pixmap.scaled(205, 305)
         self.label6.setPixmap(QPixmap(pixmap))
 
         self.label7 = QLabel(self)
-        pixmap = QPixmap('./poster/poster6.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label7.setPixmap(QPixmap(pixmap))
-
-        self.label8 = QLabel(self)
         pixmap = QPixmap('./poster/poster7.jpg')
         pixmap = pixmap.scaled(205, 305)
-        self.label8.setPixmap(QPixmap(pixmap))
+        self.label7.setPixmap(QPixmap(pixmap))
 
         #그리드 레이아웃
         layout = QGridLayout()
         self.setLayout(layout)
-        layout.addWidget(self.label1, 0, 0)
-        layout.addWidget(self.label2, 0, 1)
-        layout.addWidget(self.label3, 0, 2)
-        layout.addWidget(self.label4, 0, 3)
-        layout.addWidget(self.label5, 1, 0)
-        layout.addWidget(self.label6, 1, 1)
-        layout.addWidget(self.label7, 1, 2)
-        layout.addWidget(self.label8, 1, 3)
+        layout.addWidget(self.label0, 0, 0)
+        layout.addWidget(self.label1, 0, 1)
+        layout.addWidget(self.label2, 0, 2)
+        layout.addWidget(self.label3, 0, 3)
+        layout.addWidget(self.label4, 1, 0)
+        layout.addWidget(self.label5, 1, 1)
+        layout.addWidget(self.label6, 1, 2)
+        layout.addWidget(self.label7, 1, 3)
         layout.addWidget(self.prevbtn, 2, 0)
         layout.addWidget(self.nextbtn, 2, 1)
         layout.addWidget(self.donebtn, 2, 2)
 
+
         #레이블 클릭할 수 있게 만들어줌
-        clickable(self.label1).connect(self.checklbl0)
-        clickable(self.label2).connect(self.checklbl1)
-        clickable(self.label3).connect(self.checklbl2)
-        clickable(self.label4).connect(self.checklbl3)
-        clickable(self.label5).connect(self.checklbl4)
-        clickable(self.label6).connect(self.checklbl5)
-        clickable(self.label7).connect(self.checklbl6)
-        clickable(self.label8).connect(self.checklbl7)
+        clickable(self.label0).connect(self.checklbl0)
+        clickable(self.label1).connect(self.checklbl1)
+        clickable(self.label2).connect(self.checklbl2)
+        clickable(self.label3).connect(self.checklbl3)
+        clickable(self.label4).connect(self.checklbl4)
+        clickable(self.label5).connect(self.checklbl5)
+        clickable(self.label6).connect(self.checklbl6)
+        clickable(self.label7).connect(self.checklbl7)
+
 
     #레이블 클릭시 실행되는 것
+
     def checklbl0(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[0][0])
-        #유저 점수 따로 입력받고 싶음
-        user_score.append('89')
-
+        global user_df
+        if (self.l0_idx)%3 == 1:
+            user_df.loc[0] = ['user', sorted_counttitle[0][0], '90']
+            self.l0_idx += 1
+            self.update()
+        elif (self.l0_idx)%3 == 2:
+            user_df.loc[0] = ['user', sorted_counttitle[0][0], '10']
+            self.l0_idx += 1
+            self.update()
+        elif (self.l0_idx)%3 == 0:
+            user_df = user_df.drop(0)
+            self.l0_idx += 1
+            self.update()
     def checklbl1(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[1][0])
-        user_score.append('90')
-
+        global user_df
+        if (self.l1_idx)%3 == 1:
+            user_df.loc[1] = ['user', sorted_counttitle[1][0], '90']
+            self.l1_idx += 1
+            self.update()
+        elif (self.l1_idx)%3 ==2:
+            user_df.loc[1] = ['user', sorted_counttitle[1][0], '10']
+            self.l1_idx += 1
+            self.update()
+        elif (self.l1_idx)%3 == 0:
+            user_df = user_df.drop(1)
+            self.l1_idx += 1
+            self.update()
     def checklbl2(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[2][0])
-        user_score.append('89')
-
+        if (self.l2_idx)%3 == 1:
+            user_df.loc[2] = ['user', sorted_counttitle[2][0], '90']
+            self.l2_idx += 1
+            self.update()
+        elif (self.l2_idx)%3 == 2:
+            user_df.loc[2] = ['user', sorted_counttitle[2][0], '10']
+            self.l2_idx += 1
+            self.update()
+        elif (self.l2_idx)%3 == 0:
+            user_df.drop(2)
+            self.l2_idx += 1
+            self.update()
     def checklbl3(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[3][0])
-        user_score.append('90')
-
+        if (self.l3_idx)%3 == 1:
+            user_df.loc[3] = ['user', sorted_counttitle[3][0], '90']
+            self.l3_idx += 1
+            self.update()
+        elif (self.l3_idx)%3 == 2:
+            user_df.loc[3] = ['user', sorted_counttitle[2][0], '10']
+            self.l3_idx += 1
+            self.update()
+        elif (self.l3_idx)%3 == 0:
+            user_df.drop(3)
+            self.l3_idx += 1
+            self.update()
     def checklbl4(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[4][0])
-        user_score.append('89')
-
+        if (self.l4_idx)%3 == 1:
+            user_df.loc[4] = ['user', sorted_counttitle[4][0], '90']
+            self.l4_idx += 1
+            self.update()
+        elif (self.l4_idx)%3 == 2:
+            user_df.loc[4] = ['user', sorted_counttitle[4][0], '10']
+            self.l4_idx += 1
+            self.update()
+        elif (self.l4_idx)%3 == 0:
+            user_df.drop(4)
+            self.l4_idx += 1
+            self.update()
     def checklbl5(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[5][0])
-        user_score.append('90')
-
+        if (self.l5_idx)%3 == 1:
+            user_df.loc[5] = ['user', sorted_counttitle[5][0], '90']
+            self.l5_idx += 1
+            self.update()
+        elif (self.l5_idx)%3 == 2:
+            user_df.loc[5] = ['user', sorted_counttitle[5][0], '10']
+            self.l5_idx += 1
+            self.update()
+        elif (self.l5_idx)%3 == 0:
+            user_df.drop(5)
+            self.l5_idx += 1
+            self.update()
     def checklbl6(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[6][0])
-        user_score.append('89')
-
+        if (self.l6_idx)%3 == 1:
+            user_df.loc[6] = ['user', sorted_counttitle[6][0], '90']
+            self.l6_idx += 1
+            self.update()
+        elif (self.l6_idx)%3 == 2:
+            user_df.loc[6] = ['user', sorted_counttitle[6][0], '10']
+            self.l6_idx += 1
+            self.update()
+        elif (self.l6_idx)%3 == 0:
+            user_df.drop(6)
+            self.l6_idx += 1
+            self.update()
     def checklbl7(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[7][0])
-        user_score.append('90')
+        if (self.l7_idx)%3 == 1:
+            user_df.loc[7] = ['user', sorted_counttitle[7][0], '90']
+            self.l7_idx += 1
+            self.update()
+        elif (self.l7_idx)%3 == 2:
+            user_df.loc[7] = ['user', sorted_counttitle[7][0], '10']
+            self.l7_idx += 1
+            self.update()
+        elif (self.l7_idx)%3 == 0:
+            user_df.drop(7)
+            self.l7_idx += 1
+            self.update()
 
-    #화면 중앙 출력
-    def center(self):
-        frame_info = self.frameGeometry()
-        display_center = QDesktopWidget().availableGeometry().center()
-        frame_info.moveCenter(display_center)
-        self.move(frame_info.topLeft())
+    def paintEvent(self, e):
+
+        if self.l0_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec0(qp)
+            qp.end()
+        elif self.l0_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec0(qp)
+            qp.end()
+        elif self.l0_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l1_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec1(qp)
+            qp.end()
+        elif self.l1_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec1(qp)
+            qp.end()
+        elif self.l1_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l2_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec2(qp)
+            qp.end()
+        elif self.l2_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec2(qp)
+            qp.end()
+        elif self.l2_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l3_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec3(qp)
+            qp.end()
+        elif self.l3_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec3(qp)
+            qp.end()
+        elif self.l1_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l4_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec4(qp)
+            qp.end()
+        elif self.l4_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec4(qp)
+            qp.end()
+        elif self.l4_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l5_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec5(qp)
+            qp.end()
+        elif self.l5_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec5(qp)
+            qp.end()
+        elif self.l5_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l6_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec6(qp)
+            qp.end()
+        elif self.l6_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec6(qp)
+            qp.end()
+        elif self.l6_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l7_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec7(qp)
+            qp.end()
+        elif self.l7_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec7(qp)
+            qp.end()
+        elif self.l7_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+
+    def drawRec0(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label0.frameGeometry().x()-5, self.label0.frameGeometry().y()+30, 215, 315)
+    def drawRec1(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label1.frameGeometry().x()-5, self.label1.frameGeometry().y()+30, 215, 315)
+    def drawRec2(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label2.frameGeometry().x()-5, self.label2.frameGeometry().y()+30, 215, 315)
+    def drawRec3(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label3.frameGeometry().x()-5, self.label3.frameGeometry().y()+30, 215, 315)
+    def drawRec4(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label4.frameGeometry().x()-5, self.label4.frameGeometry().y()+30, 215, 315)
+    def drawRec5(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label5.frameGeometry().x()-5, self.label5.frameGeometry().y()+30, 215, 315)
+    def drawRec6(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label6.frameGeometry().x()-5, self.label6.frameGeometry().y()+30, 215, 315)
+    def drawRec7(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label7.frameGeometry().x()-5, self.label7.frameGeometry().y()+30, 215, 315)
+
+class Page2(QWidget):
+
+    def __init__(self, parent=None):
+        super(Page2, self).__init__(parent)
+
+        self.l8_idx = 1
+        self.l9_idx = 1
+        self.l10_idx = 1
+        self.l11_idx = 1
+        self.l12_idx = 1
+        self.l13_idx = 1
+        self.l14_idx = 1
+        self.l15_idx = 1
+
+        self.resize(1400, 800)
+
+        self.prevbtn = QPushButton(self)
+        self.prevbtn.setText(' 이 전 ')
+
+        self.nextbtn = QPushButton(self)
+        self.nextbtn.setText(' 다 음 ')
+
+        self.donebtn = QPushButton(self)
+        self.donebtn.setText(' 완 료 ')
+
+        self.label8 = QLabel(self)
+        pixmap = QPixmap('./poster/poster8.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label8.setPixmap(QPixmap(pixmap))
+
+        self.label9 = QLabel(self)
+        pixmap = QPixmap('./poster/poster9.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label9.setPixmap(QPixmap(pixmap))
+
+        self.label10 = QLabel(self)
+        pixmap = QPixmap('./poster/poster10.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label10.setPixmap(QPixmap(pixmap))
+
+        self.label11 = QLabel(self)
+        pixmap = QPixmap('./poster/poster11.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label11.setPixmap(QPixmap(pixmap))
+
+        self.label12 = QLabel(self)
+        pixmap = QPixmap('./poster/poster12.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label12.setPixmap(QPixmap(pixmap))
+
+        self.label13 = QLabel(self)
+        pixmap = QPixmap('./poster/poster13.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label13.setPixmap(QPixmap(pixmap))
+
+        self.label14 = QLabel(self)
+        pixmap = QPixmap('./poster/poster14.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label14.setPixmap(QPixmap(pixmap))
+
+        self.label15 = QLabel(self)
+        pixmap = QPixmap('./poster/poster15.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label15.setPixmap(QPixmap(pixmap))
+
+        # 그리드 레이아웃
+        layout = QGridLayout()
+        self.setLayout(layout)
+        layout.addWidget(self.label8, 0, 0)
+        layout.addWidget(self.label9, 0, 1)
+        layout.addWidget(self.label10, 0, 2)
+        layout.addWidget(self.label11, 0, 3)
+        layout.addWidget(self.label12, 1, 0)
+        layout.addWidget(self.label13, 1, 1)
+        layout.addWidget(self.label14, 1, 2)
+        layout.addWidget(self.label15, 1, 3)
+        layout.addWidget(self.prevbtn, 2, 0)
+        layout.addWidget(self.nextbtn, 2, 1)
+        layout.addWidget(self.donebtn, 2, 2)
+
+        # 레이블 클릭할 수 있게 만들어줌
+        clickable(self.label8).connect(self.checklbl8)
+        clickable(self.label9).connect(self.checklbl9)
+        clickable(self.label10).connect(self.checklbl10)
+        clickable(self.label11).connect(self.checklbl11)
+        clickable(self.label12).connect(self.checklbl12)
+        clickable(self.label13).connect(self.checklbl13)
+        clickable(self.label14).connect(self.checklbl14)
+        clickable(self.label15).connect(self.checklbl15)
+
+    # 레이블 클릭시 실행되는 것
+    def checklbl8(self):
+        global user_df
+        if (self.l8_idx)%3 == 1:
+            user_df.loc[8] = ['user', sorted_counttitle[8][0], '90']
+            self.l8_idx += 1
+            self.update()
+        elif (self.l8_idx)%3 == 2:
+            user_df.loc[8] = ['user', sorted_counttitle[8][0], '10']
+            self.l8_idx += 1
+            self.update()
+        elif (self.l8_idx)%3 == 0:
+            user_df = user_df.drop(8)
+            self.l8_idx += 1
+            self.update()
+    def checklbl9(self):
+        global user_df
+        if (self.l9_idx) % 3 == 1:
+            user_df.loc[9] = ['user', sorted_counttitle[9][0], '90']
+            self.l9_idx += 1
+            self.update()
+        elif (self.l9_idx) % 3 == 2:
+            user_df.loc[9] = ['user', sorted_counttitle[9][0], '10']
+            self.l9_idx += 1
+            self.update()
+        elif (self.l9_idx) % 3 == 0:
+            user_df = user_df.drop(9)
+            self.l9_idx += 1
+            self.update()
+    def checklbl10(self):
+        global user_df
+        if (self.l10_idx) % 3 == 1:
+            user_df.loc[10] = ['user', sorted_counttitle[10][0], '90']
+            self.l10_idx += 1
+            self.update()
+        elif (self.l10_idx) % 3 == 2:
+            user_df.loc[10] = ['user', sorted_counttitle[10][0], '10']
+            self.l10_idx += 1
+            self.update()
+        elif (self.l10_idx) % 3 == 0:
+            user_df = user_df.drop(10)
+            self.l10_idx += 1
+            self.update()
+
+    def checklbl11(self):
+        global user_df
+        if (self.l11_idx) % 3 == 1:
+            user_df.loc[11] = ['user', sorted_counttitle[11][0], '90']
+            self.l11_idx += 1
+            self.update()
+        elif (self.l11_idx) % 3 == 2:
+            user_df.loc[11] = ['user', sorted_counttitle[11][0], '10']
+            self.l11_idx += 1
+            self.update()
+        elif (self.l11_idx) % 3 == 0:
+            user_df = user_df.drop(11)
+            self.l11_idx += 1
+            self.update()
+    def checklbl12(self):
+        global user_df
+        if (self.l12_idx) % 3 == 1:
+            user_df.loc[12] = ['user', sorted_counttitle[12][0], '90']
+            self.l12_idx += 1
+            self.update()
+        elif (self.l12_idx) % 3 == 2:
+            user_df.loc[12] = ['user', sorted_counttitle[12][0], '10']
+            self.l12_idx += 1
+            self.update()
+        elif (self.l12_idx) % 3 == 0:
+            user_df = user_df.drop(12)
+            self.l12_idx += 1
+            self.update()
+    def checklbl13(self):
+        global user_df
+        if (self.l13_idx) % 3 == 1:
+            user_df.loc[13] = ['user', sorted_counttitle[13][0], '90']
+            self.l13_idx += 1
+            self.update()
+        elif (self.l13_idx) % 3 == 2:
+            user_df.loc[13] = ['user', sorted_counttitle[13][0], '10']
+            self.l13_idx += 1
+            self.update()
+        elif (self.l13_idx) % 3 == 0:
+            user_df = user_df.drop(13)
+            self.l13_idx += 1
+            self.update()
+    def checklbl14(self):
+        global user_df
+        if (self.l14_idx) % 3 == 1:
+            user_df.loc[14] = ['user', sorted_counttitle[14][0], '90']
+            self.l14_idx += 1
+            self.update()
+        elif (self.l14_idx) % 3 == 2:
+            user_df.loc[14] = ['user', sorted_counttitle[14][0], '10']
+            self.l14_idx += 1
+            self.update()
+        elif (self.l14_idx) % 3 == 0:
+            user_df = user_df.drop(14)
+            self.l14_idx += 1
+            self.update()
+    def checklbl15(self):
+        global user_df
+        if (self.l15_idx) % 3 == 1:
+            user_df.loc[15] = ['user', sorted_counttitle[15][0], '90']
+            self.l15_idx += 1
+            self.update()
+        elif (self.l15_idx) % 3 == 2:
+            user_df.loc[15] = ['user', sorted_counttitle[15][0], '10']
+            self.l15_idx += 1
+            self.update()
+        elif (self.l15_idx) % 3 == 0:
+            user_df = user_df.drop(15)
+            self.l15_idx += 1
+            self.update()
+
+    def paintEvent(self, e):
+
+        if self.l8_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec0(qp)
+            qp.end()
+        elif self.l8_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec0(qp)
+            qp.end()
+        elif self.l8_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l9_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec1(qp)
+            qp.end()
+        elif self.l9_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec1(qp)
+            qp.end()
+        elif self.l9_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l10_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec2(qp)
+            qp.end()
+        elif self.l10_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec2(qp)
+            qp.end()
+        elif self.l10_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l11_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec3(qp)
+            qp.end()
+        elif self.l11_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec3(qp)
+            qp.end()
+        elif self.l11_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l12_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec4(qp)
+            qp.end()
+        elif self.l12_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec4(qp)
+            qp.end()
+        elif self.l12_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l13_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec5(qp)
+            qp.end()
+        elif self.l13_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec5(qp)
+            qp.end()
+        elif self.l13_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l14_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec6(qp)
+            qp.end()
+        elif self.l14_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec6(qp)
+            qp.end()
+        elif self.l14_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l15_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec7(qp)
+            qp.end()
+        elif self.l15_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec7(qp)
+            qp.end()
+        elif self.l15_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+
+    def drawRec0(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label8.frameGeometry().x()-5, self.label8.frameGeometry().y()+30, 215, 315)
+    def drawRec1(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label9.frameGeometry().x()-5, self.label9.frameGeometry().y()+30, 215, 315)
+    def drawRec2(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label10.frameGeometry().x()-5, self.label10.frameGeometry().y()+30, 215, 315)
+    def drawRec3(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label11.frameGeometry().x()-5, self.label11.frameGeometry().y()+30, 215, 315)
+    def drawRec4(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label12.frameGeometry().x()-5, self.label12.frameGeometry().y()+30, 215, 315)
+    def drawRec5(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label13.frameGeometry().x()-5, self.label13.frameGeometry().y()+30, 215, 315)
+    def drawRec6(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label14.frameGeometry().x()-5, self.label14.frameGeometry().y()+30, 215, 315)
+    def drawRec7(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label15.frameGeometry().x()-5, self.label15.frameGeometry().y()+30, 215, 315)
+
+
+class Page3(QWidget):
+
+    def __init__(self, parent=None):
+        super(Page3, self).__init__(parent)
+
+        self.l16_idx = 1
+        self.l17_idx = 1
+        self.l18_idx = 1
+        self.l19_idx = 1
+        self.l20_idx = 1
+        self.l21_idx = 1
+        self.l22_idx = 1
+        self.l23_idx = 1
+
+        self.resize(1400, 800)
+
+        self.prevbtn = QPushButton(self)
+        self.prevbtn.setText(' 이 전 ')
+
+        self.nextbtn = QPushButton(self)
+        self.nextbtn.setText(' 다 음 ')
+
+        self.donebtn = QPushButton(self)
+        self.donebtn.setText(' 완 료 ')
+
+        self.label16 = QLabel(self)
+        pixmap = QPixmap('./poster/poster16.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label16.setPixmap(QPixmap(pixmap))
+
+        self.label17 = QLabel(self)
+        pixmap = QPixmap('./poster/poster17.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label17.setPixmap(QPixmap(pixmap))
+
+        self.label18 = QLabel(self)
+        pixmap = QPixmap('./poster/poster18.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label18.setPixmap(QPixmap(pixmap))
+
+        self.label19 = QLabel(self)
+        pixmap = QPixmap('./poster/poster19.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label19.setPixmap(QPixmap(pixmap))
+
+        self.label20 = QLabel(self)
+        pixmap = QPixmap('./poster/poster20.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label20.setPixmap(QPixmap(pixmap))
+
+        self.label21 = QLabel(self)
+        pixmap = QPixmap('./poster/poster21.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label21.setPixmap(QPixmap(pixmap))
+
+        self.label22 = QLabel(self)
+        pixmap = QPixmap('./poster/poster22.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label22.setPixmap(QPixmap(pixmap))
+
+        self.label23 = QLabel(self)
+        pixmap = QPixmap('./poster/poster23.jpg')
+        pixmap = pixmap.scaled(205, 305)
+        self.label23.setPixmap(QPixmap(pixmap))
+
+        # 그리드 레이아웃
+        layout = QGridLayout()
+        self.setLayout(layout)
+        layout.addWidget(self.label16, 0, 0)
+        layout.addWidget(self.label17, 0, 1)
+        layout.addWidget(self.label18, 0, 2)
+        layout.addWidget(self.label19, 0, 3)
+        layout.addWidget(self.label20, 1, 0)
+        layout.addWidget(self.label21, 1, 1)
+        layout.addWidget(self.label22, 1, 2)
+        layout.addWidget(self.label23, 1, 3)
+        layout.addWidget(self.prevbtn, 2, 0)
+        layout.addWidget(self.nextbtn, 2, 1)
+        layout.addWidget(self.donebtn, 2, 2)
+
+        # 레이블 클릭할 수 있게 만들어줌
+        clickable(self.label16).connect(self.checklbl16)
+        clickable(self.label17).connect(self.checklbl17)
+        clickable(self.label18).connect(self.checklbl18)
+        clickable(self.label19).connect(self.checklbl19)
+        clickable(self.label20).connect(self.checklbl20)
+        clickable(self.label21).connect(self.checklbl21)
+        clickable(self.label22).connect(self.checklbl22)
+        clickable(self.label23).connect(self.checklbl23)
+
+    # 레이블 클릭시 실행되는 것
+    def checklbl16(self):
+        global user_df
+        if (self.l16_idx) % 3 == 1:
+            user_df.loc[16] = ['user', sorted_counttitle[16][0], '90']
+            self.l16_idx += 1
+            self.update()
+        elif (self.l16_idx) % 3 == 2:
+            user_df.loc[16] = ['user', sorted_counttitle[16][0], '10']
+            self.l16_idx += 1
+            self.update()
+        elif (self.l16_idx) % 3 == 0:
+            user_df = user_df.drop(16)
+            self.l16_idx += 1
+            self.update()
+    def checklbl17(self):
+        global user_df
+        if (self.l17_idx) % 3 == 1:
+            user_df.loc[17] = ['user', sorted_counttitle[17][0], '90']
+            self.l17_idx += 1
+            self.update()
+        elif (self.l17_idx) % 3 == 2:
+            user_df.loc[17] = ['user', sorted_counttitle[17][0], '10']
+            self.l17_idx += 1
+            self.update()
+        elif (self.l17_idx) % 3 == 0:
+            user_df = user_df.drop(17)
+            self.l17_idx += 1
+            self.update()
+    def checklbl18(self):
+        global user_df
+        if (self.l18_idx) % 3 == 1:
+            user_df.loc[18] = ['user', sorted_counttitle[18][0], '90']
+            self.l18_idx += 1
+            self.update()
+        elif (self.l18_idx) % 3 == 2:
+            user_df.loc[18] = ['user', sorted_counttitle[18][0], '10']
+            self.l18_idx += 1
+            self.update()
+        elif (self.l18_idx) % 3 == 0:
+            user_df = user_df.drop(18)
+            self.l18_idx += 1
+            self.update()
+    def checklbl19(self):
+        global user_df
+        if (self.l19_idx) % 3 == 1:
+            user_df.loc[19] = ['user', sorted_counttitle[19][0], '90']
+            self.l19_idx += 1
+            self.update()
+        elif (self.l19_idx) % 3 == 2:
+            user_df.loc[19] = ['user', sorted_counttitle[19][0], '10']
+            self.l19_idx += 1
+            self.update()
+        elif (self.l19_idx) % 3 == 0:
+            user_df = user_df.drop(19)
+            self.l19_idx += 1
+            self.update()
+    def checklbl20(self):
+        global user_df
+        if (self.l20_idx) % 3 == 1:
+            user_df.loc[20] = ['user', sorted_counttitle[20][0], '90']
+            self.l20_idx += 1
+            self.update()
+        elif (self.l20_idx) % 3 == 2:
+            user_df.loc[20] = ['user', sorted_counttitle[20][0], '10']
+            self.l20_idx += 1
+            self.update()
+        elif (self.l20_idx) % 3 == 0:
+            user_df = user_df.drop(20)
+            self.l20_idx += 1
+            self.update()
+    def checklbl21(self):
+        global user_df
+        if (self.l21_idx) % 3 == 1:
+            user_df.loc[18] = ['user', sorted_counttitle[21][0], '90']
+            self.l21_idx += 1
+            self.update()
+        elif (self.l21_idx) % 3 == 2:
+            user_df.loc[21] = ['user', sorted_counttitle[21][0], '10']
+            self.l21_idx += 1
+            self.update()
+        elif (self.l21_idx) % 3 == 0:
+            user_df = user_df.drop(21)
+            self.l21_idx += 1
+            self.update()
+    def checklbl22(self):
+        global user_df
+        if (self.l22_idx) % 3 == 1:
+            user_df.loc[22] = ['user', sorted_counttitle[22][0], '90']
+            self.l22_idx += 1
+            self.update()
+        elif (self.l22_idx) % 3 == 2:
+            user_df.loc[22] = ['user', sorted_counttitle[22][0], '10']
+            self.l22_idx += 1
+            self.update()
+        elif (self.l22_idx) % 3 == 0:
+            user_df = user_df.drop(22)
+            self.l22_idx += 1
+            self.update()
+    def checklbl23(self):
+        global user_df
+        if (self.l23_idx) % 3 == 1:
+            user_df.loc[23] = ['user', sorted_counttitle[23][0], '90']
+            self.l23_idx += 1
+            self.update()
+        elif (self.l23_idx) % 3 == 2:
+            user_df.loc[23] = ['user', sorted_counttitle[23][0], '10']
+            self.l23_idx += 1
+            self.update()
+        elif (self.l23_idx) % 3 == 0:
+            user_df = user_df.drop(23)
+            self.l23_idx += 1
+            self.update()
+
+
+    def paintEvent(self, e):
+
+        if self.l16_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec0(qp)
+            qp.end()
+        elif self.l16_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec0(qp)
+            qp.end()
+        elif self.l16_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l17_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec1(qp)
+            qp.end()
+        elif self.l17_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec1(qp)
+            qp.end()
+        elif self.l17_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l18_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec2(qp)
+            qp.end()
+        elif self.l18_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec2(qp)
+            qp.end()
+        elif self.l18_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l19_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec3(qp)
+            qp.end()
+        elif self.l19_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec3(qp)
+            qp.end()
+        elif self.l19_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l20_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec4(qp)
+            qp.end()
+        elif self.l20_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec4(qp)
+            qp.end()
+        elif self.l20_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l21_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec5(qp)
+            qp.end()
+        elif self.l21_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec5(qp)
+            qp.end()
+        elif self.l21_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l22_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec6(qp)
+            qp.end()
+        elif self.l22_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec6(qp)
+            qp.end()
+        elif self.l22_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+        if self.l23_idx%3 == 2:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(0, 200, 0))
+            self.drawRec7(qp)
+            qp.end()
+        elif self.l23_idx%3 == 0:
+            qp = QPainter()
+            qp.begin(self)
+            qp.setBrush(QColor(200, 0, 0))
+            self.drawRec7(qp)
+            qp.end()
+        elif self.l23_idx%3 == 1:
+            qp = QPainter()
+            qp.begin(self)
+            qp.end()
+
+    def drawRec0(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label16.frameGeometry().x()-5, self.label16.frameGeometry().y()+30, 215, 315)
+    def drawRec1(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label17.frameGeometry().x()-5, self.label17.frameGeometry().y()+30, 215, 315)
+    def drawRec2(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label18.frameGeometry().x()-5, self.label18.frameGeometry().y()+30, 215, 315)
+    def drawRec3(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label19.frameGeometry().x()-5, self.label19.frameGeometry().y()+30, 215, 315)
+    def drawRec4(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label20.frameGeometry().x()-5, self.label20.frameGeometry().y()+30, 215, 315)
+    def drawRec5(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label21.frameGeometry().x()-5, self.label21.frameGeometry().y()+30, 215, 315)
+    def drawRec6(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label22.frameGeometry().x()-5, self.label22.frameGeometry().y()+30, 215, 315)
+    def drawRec7(self, qp):
+        col = QColor(0, 0, 0)
+        col.setNamedColor('#d4d4d4')
+        qp.setPen(col)
+        qp.drawRect(self.label23.frameGeometry().x()-5, self.label23.frameGeometry().y()+30, 215, 315)
 
 
 #done버튼 누르면 출력되는 화면 // 영화 추천 결과 출력
@@ -491,6 +1488,7 @@ class recWindow(QWidget):
 
         self.resize(1400, 800)
         self.linker()
+
 
         #이전 화면 출력
         self.prevbtn = QPushButton(self)
@@ -723,6 +1721,7 @@ class recpage3(QWidget):
 
         self.resize(1400, 800)
 
+
         #이전 화면 출력
         self.prevbtn = QPushButton(self)
         self.prevbtn.setText(' 이 전 ')
@@ -835,11 +1834,12 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__(parent)
         self.setGeometry(50, 50, 400, 450)
         self.setFixedSize(1200, 800)
-        self.startdownload()
+#        self.startdownload()
         self.startUIWindow()
 
-    def startdownload(self):
-        main_poster_crawler()
+
+    # def startdownload(self):
+    #     main_poster_crawler()
 
     def recstartdownload(self):
         result_poster_crawler()
@@ -902,11 +1902,9 @@ class MainWindow(QMainWindow):
 
     #유사도 계산하는 함수
     def simrank(self):
+
         #엑셀에서 만들어진 데이터 프레임
         df = pd.DataFrame({'Name': name, 'Title': title, 'Score': score}, columns=['Name', 'Title', 'Score'])
-
-        #유저가 클릭한 레이블로 만들어진 데이터 프레임
-        user_df = pd.DataFrame({'Name': user_name, 'Title': user_title, 'Score': user_score}, columns=['Name', 'Title', 'Score'])
 
         #데이터 프레임 합침
         final_df = df.append(user_df, ignore_index=True)
@@ -916,10 +1914,20 @@ class MainWindow(QMainWindow):
         #유저인덱스 찾기
         user_index = finduser_index(final_dfpt, len_index)
 
-        #평론가 별 유사도 저장한 것 temp에 저장
+        #평론가 별 유사도를 temp에 저장
         temp = dict()
         for item in range(0, len_index-1):
             temp[item] = com_title(final_df, final_dfpt, item, user_index)
+
+        #잘못된 데이터의 인덱스 찾아내기
+        for i in range(len(temp)):
+            if type(temp[i]) == int:
+                continue
+            elif len(temp[i]) == 2:
+                tempidx.append(i)
+        #잘못된 데이터 후처리
+        for i in range(len(tempidx)):
+            temp.pop(tempidx[i])
 
         #유사도 순위 계산 후 저장
         global rank_temp # index, sim
@@ -927,275 +1935,33 @@ class MainWindow(QMainWindow):
 
         #유사도 가장 높은 3명 이름
         global rank_name
-        for index in range(1, 5):
-            rank_name.append(final_dfpt.index[rank_temp[index][0]])
+        for index in range(0, 4):
+            rank_name.append(final_dfpt.index[rank_temp[index][0]]) #rank_temp[index][0] = 유사도가 높은 사람의 인덱스
 
         #유사도 가장 높은 3명만 df에 저장
         global rank_df
         for item in rank_name:
-            rank_df.append(final_df[final_df['Name'] == item])
+            rank_df.append(final_df[final_df['Name'] == item]) #DataFrame에서 유사도가 높은 사람의 이름을 이용해서 그 내용만 저장
 
         return rank_name, rank_temp, rank_df
 
     def resultrank(self):
         global  rank_dict, author_title, author_score, sorted_rank_dict
-        rank_dict = dict()
+
+        rank_dict = dict() #유사도가 높은 3명의 데이터를 저장할 변수
+
         for item in rank_df:
             for title in item['Title']:
                 author_title.append(title)
             for score in item['Score']:
                 author_score.append(score)
+
         for i in range(len(author_title)):
-            rank_dict[author_title[i]] = int(author_score[i])
+            rank_dict[author_title[i]] = int(author_score[i]) #rank_dict에 유사도가 높은 3명의 키 = 영화제목, 값 = 영화점수로 저장
 
-        sorted_rank_dict = sorted(rank_dict.items(), key=operator.itemgetter(1), reverse=True)
+        sorted_rank_dict = sorted(rank_dict.items(), key=operator.itemgetter(1), reverse=True) #rank_dict 정렬
 
 
-class Page2(QWidget):
-
-    def __init__(self, parent=None):
-        super(Page2, self).__init__(parent)
-
-        self.resize(1400, 800)
-
-        self.prevbtn = QPushButton(self)
-        self.prevbtn.setText(' 이 전 ')
-
-        self.nextbtn = QPushButton(self)
-        self.nextbtn.setText(' 다 음 ')
-
-        self.donebtn = QPushButton(self)
-        self.donebtn.setText(' 완 료 ')
-
-        self.label9 = QLabel(self)
-        pixmap = QPixmap('./poster/poster8.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label9.setPixmap(QPixmap(pixmap))
-
-        self.label10 = QLabel(self)
-        pixmap = QPixmap('./poster/poster9.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label10.setPixmap(QPixmap(pixmap))
-
-        self.label11 = QLabel(self)
-        pixmap = QPixmap('./poster/poster10.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label11.setPixmap(QPixmap(pixmap))
-
-        self.label12 = QLabel(self)
-        pixmap = QPixmap('./poster/poster11.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label12.setPixmap(QPixmap(pixmap))
-
-        self.label13 = QLabel(self)
-        pixmap = QPixmap('./poster/poster12.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label13.setPixmap(QPixmap(pixmap))
-
-        self.label14 = QLabel(self)
-        pixmap = QPixmap('./poster/poster13.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label14.setPixmap(QPixmap(pixmap))
-
-        self.label15 = QLabel(self)
-        pixmap = QPixmap('./poster/poster14.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label15.setPixmap(QPixmap(pixmap))
-
-        self.label16 = QLabel(self)
-        pixmap = QPixmap('./poster/poster15.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label16.setPixmap(QPixmap(pixmap))
-
-        # 그리드 레이아웃
-        layout = QGridLayout()
-        self.setLayout(layout)
-        layout.addWidget(self.label9, 0, 0)
-        layout.addWidget(self.label10, 0, 1)
-        layout.addWidget(self.label11, 0, 2)
-        layout.addWidget(self.label12, 0, 3)
-        layout.addWidget(self.label13, 1, 0)
-        layout.addWidget(self.label14, 1, 1)
-        layout.addWidget(self.label15, 1, 2)
-        layout.addWidget(self.label16, 1, 3)
-        layout.addWidget(self.prevbtn, 2, 0)
-        layout.addWidget(self.nextbtn, 2, 1)
-        layout.addWidget(self.donebtn, 2, 2)
-
-        # 레이블 클릭할 수 있게 만들어줌
-        clickable(self.label9).connect(self.checklbl8)
-        clickable(self.label10).connect(self.checklbl9)
-        clickable(self.label11).connect(self.checklbl10)
-        clickable(self.label12).connect(self.checklbl11)
-        clickable(self.label13).connect(self.checklbl12)
-        clickable(self.label14).connect(self.checklbl13)
-        clickable(self.label15).connect(self.checklbl14)
-        clickable(self.label16).connect(self.checklbl15)
-
-    # 레이블 클릭시 실행되는 것
-    def checklbl8(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[8][0])
-        # 유저 점수 따로 입력받고 싶음
-        user_score.append('89')
-
-    def checklbl9(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[9][0])
-        user_score.append('90')
-
-    def checklbl10(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[10][0])
-        user_score.append('89')
-
-    def checklbl11(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[11][0])
-        user_score.append('90')
-
-    def checklbl12(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[12][0])
-        user_score.append('89')
-
-    def checklbl13(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[13][0])
-        user_score.append('90')
-
-    def checklbl14(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[14][0])
-        user_score.append('89')
-
-    def checklbl15(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[15][0])
-        user_score.append('90')
-
-class Page3(QWidget):
-
-    def __init__(self, parent=None):
-        super(Page3, self).__init__(parent)
-
-        self.resize(1400, 800)
-
-        self.prevbtn = QPushButton(self)
-        self.prevbtn.setText(' 이 전 ')
-
-        self.nextbtn = QPushButton(self)
-        self.nextbtn.setText(' 다 음 ')
-
-        self.donebtn = QPushButton(self)
-        self.donebtn.setText(' 완 료 ')
-
-        self.label17 = QLabel(self)
-        pixmap = QPixmap('./poster/poster16.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label17.setPixmap(QPixmap(pixmap))
-
-        self.label18 = QLabel(self)
-        pixmap = QPixmap('./poster/poster17.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label18.setPixmap(QPixmap(pixmap))
-
-        self.label19 = QLabel(self)
-        pixmap = QPixmap('./poster/poster18.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label19.setPixmap(QPixmap(pixmap))
-
-        self.label20 = QLabel(self)
-        pixmap = QPixmap('./poster/poster19.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label20.setPixmap(QPixmap(pixmap))
-
-        self.label21 = QLabel(self)
-        pixmap = QPixmap('./poster/poster20.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label21.setPixmap(QPixmap(pixmap))
-
-        self.label22 = QLabel(self)
-        pixmap = QPixmap('./poster/poster21.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label22.setPixmap(QPixmap(pixmap))
-
-        self.label23 = QLabel(self)
-        pixmap = QPixmap('./poster/poster22.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label23.setPixmap(QPixmap(pixmap))
-
-        self.label24 = QLabel(self)
-        pixmap = QPixmap('./poster/poster23.jpg')
-        pixmap = pixmap.scaled(205, 305)
-        self.label24.setPixmap(QPixmap(pixmap))
-
-        # 그리드 레이아웃
-        layout = QGridLayout()
-        self.setLayout(layout)
-        layout.addWidget(self.label17, 0, 0)
-        layout.addWidget(self.label18, 0, 1)
-        layout.addWidget(self.label19, 0, 2)
-        layout.addWidget(self.label20, 0, 3)
-        layout.addWidget(self.label21, 1, 0)
-        layout.addWidget(self.label22, 1, 1)
-        layout.addWidget(self.label23, 1, 2)
-        layout.addWidget(self.label24, 1, 3)
-        layout.addWidget(self.prevbtn, 2, 0)
-        layout.addWidget(self.nextbtn, 2, 1)
-        layout.addWidget(self.donebtn, 2, 2)
-
-        # 레이블 클릭할 수 있게 만들어줌
-        clickable(self.label17).connect(self.checklbl16)
-        clickable(self.label18).connect(self.checklbl17)
-        clickable(self.label19).connect(self.checklbl18)
-        clickable(self.label20).connect(self.checklbl19)
-        clickable(self.label21).connect(self.checklbl20)
-        clickable(self.label22).connect(self.checklbl21)
-        clickable(self.label23).connect(self.checklbl22)
-        clickable(self.label24).connect(self.checklbl23)
-
-    # 레이블 클릭시 실행되는 것
-    def checklbl16(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[16][0])
-        # 유저 점수 따로 입력받고 싶음
-        user_score.append('89')
-
-    def checklbl17(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[17][0])
-        user_score.append('90')
-
-    def checklbl18(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[18][0])
-        user_score.append('89')
-
-    def checklbl19(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[19][0])
-        user_score.append('90')
-
-    def checklbl20(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[20][0])
-        user_score.append('89')
-
-    def checklbl21(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[21][0])
-        user_score.append('90')
-
-    def checklbl22(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[22][0])
-        user_score.append('89')
-
-    def checklbl23(self):
-        user_name.append('user')
-        user_title.append(sorted_counttitle[23][0])
-        user_score.append('90')
 
 def run():
     global  urldict, rec_shared_dict, re_urldict
